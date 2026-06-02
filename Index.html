@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>O&M Shop Floor Tracker</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0d0d1a;
+    font-family: 'Press Start 2P', monospace;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px;
+    gap: 14px;
+  }
+
+  .bezel {
+    background: #1a1a2e;
+    border: 6px solid #0a0a18;
+    border-radius: 14px;
+    padding: 14px 14px 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    box-shadow: inset 0 0 0 3px #2a2a4a, 0 8px 40px rgba(0,0,0,0.8);
+  }
+  .bezel-top { font-size: 7px; color: #6a6aaa; letter-spacing: 3px; margin-bottom: 10px; }
+  .bezel-bot { font-size: 6px; color: #3a3a6a; margin-top: 10px; letter-spacing: 2px; }
+  canvas { display: block; border: 3px solid #080814; image-rendering: pixelated; }
+
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 7px 16px;
+    justify-content: center; font-size: 6px; max-width: 680px;
+  }
+  .legend-item { display: flex; align-items: center; gap: 5px; color: #9a9acc; }
+  .legend-dot  { width: 10px; height: 10px; border: 1px solid rgba(255,255,255,0.15); flex-shrink: 0; }
+
+  /* ── CONTROL PANEL ── */
+  .controls {
+    background: #12122a;
+    border: 2px solid #2a2a50;
+    border-radius: 10px;
+    padding: 14px 18px;
+    width: 100%;
+    max-width: 680px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .ctrl-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .ctrl-title {
+    font-size: 7px;
+    color: #6a6aaa;
+    letter-spacing: 2px;
+    flex-shrink: 0;
+  }
+  select {
+    background: #1e1e40;
+    border: 2px solid #3a3a70;
+    border-radius: 5px;
+    color: #aaaaee;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 6px;
+    padding: 5px 8px;
+    cursor: pointer;
+    flex: 1;
+    min-width: 160px;
+  }
+  select:focus { outline: none; border-color: #6a6aee; }
+
+  .ctrl-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .ctrl-row {
+    display: grid;
+    grid-template-columns: 110px 1fr 36px;
+    align-items: center;
+    gap: 10px;
+  }
+  .ctrl-label { font-size: 5px; color: #8888aa; text-align: right; }
+  input[type=range] {
+    width: 100%; height: 4px;
+    accent-color: #6a6aee;
+    cursor: pointer;
+  }
+  .ctrl-val { font-size: 6px; color: #aaaaee; text-align: right; }
+
+  /* copy button */
+  .copy-btn {
+    background: #1e1e40;
+    border: 2px solid #3a3a70;
+    border-radius: 6px;
+    color: #aaaaee;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 6px;
+    padding: 7px 12px;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: background 0.15s, border-color 0.15s;
+    align-self: flex-start;
+  }
+  .copy-btn:hover { background: #2a2a5a; border-color: #6a6aee; }
+  .copy-btn.copied { color: #44ee88; border-color: #44ee88; }
+
+  .divider {
+    border: none;
+    border-top: 1px solid #2a2a50;
+    margin: 0;
+  }
+</style>
+</head>
+<body>
+
+<div class="bezel">
+  <div class="bezel-top">O&amp;M INDUSTRIES — ARCATA, CA</div>
+  <canvas id="map"></canvas>
+  <div class="bezel-bot">◄ SHOP FLOOR TRACKER v0.1 ►</div>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#cc3333"></div>PLASMA</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#c45c8c"></div>WORK STATIONS</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#c8720a"></div>TIG/SS/AL</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#cccc22"></div>DRAGON</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#22aa66"></div>BRAKE PRESS</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#3366cc"></div>STOCK SHEET</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#1a3a8a"></div>STOCK PIPE</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#3a7080"></div>HVAC</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#3a8a3a"></div>OFFICE</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#a07840"></div>PAINT SHED</div>
+</div>
+
+<div class="controls">
+  <div class="ctrl-header">
+    <span class="ctrl-title">▶ EDIT</span>
+    <select id="buildingSelect" onchange="showSection()"></select>
+  </div>
+  <hr class="divider">
+  <div class="ctrl-rows" id="sliderRows"></div>
+  <hr class="divider">
+  <button class="copy-btn" id="copyBtn" onclick="copySettings()">⧉ COPY ALL SETTINGS</button>
+</div>
+
+<script>
+// =============================================================================
+//  SETTINGS — paste a copied block here to restore a saved layout
+// =============================================================================
+const S = {
+  canvasW:  620,
+  canvasH:  1000,
+  yardTopH: 200,
+
+  fabX: 200, fabY: 160, fabW: 390, fabH: 580,
+
+  plW: 95,  plH: 115, plYOff: 10,
+
+  ofW: 180, ofH: 110, ofXOff: 20,
+
+  psX: 18,  psW: 130, psH: 110, psYOff: 130,
+
+  wsW: 34,  wsH: 60,
+  tigW: 148, tigH: 108,
+  drH: 120,
+  hvW: 180,  hvH: 80,
+};
+
+// =============================================================================
+//  SECTIONS — defines dropdown entries and their sliders
+// =============================================================================
+const SECTIONS = [
+  {
+    id: 'canvas', label: '── CANVAS & YARD',
+    sliders: [
+      { key:'canvasW',  label:'CANVAS WIDTH',  min:400, max:1000, step:10 },
+      { key:'canvasH',  label:'CANVAS HEIGHT', min:700, max:1600, step:10 },
+      { key:'yardTopH', label:'NORTH YARD H',  min:60,  max:400,  step:10 },
+    ]
+  },
+  {
+    id: 'fab', label: '── FAB BUILDING',
+    sliders: [
+      { key:'fabX', label:'LEFT (X)',  min:100, max:400, step:5 },
+      { key:'fabY', label:'TOP (Y)',   min:80,  max:500, step:5 },
+      { key:'fabW', label:'WIDTH',     min:200, max:550, step:5 },
+      { key:'fabH', label:'HEIGHT',    min:300, max:800, step:5 },
+    ]
+  },
+  {
+    id: 'plasma', label: '── PLASMA ROOM',
+    sliders: [
+      { key:'plW',    label:'WIDTH',    min:50,  max:180, step:5 },
+      { key:'plH',    label:'HEIGHT',   min:60,  max:220, step:5 },
+      { key:'plYOff', label:'Y OFFSET', min:0,   max:150, step:5 },
+    ]
+  },
+  {
+    id: 'office', label: '── OFFICE',
+    sliders: [
+      { key:'ofW',    label:'WIDTH',   min:80,  max:320, step:5 },
+      { key:'ofH',    label:'HEIGHT',  min:60,  max:220, step:5 },
+      { key:'ofXOff', label:'X INSET', min:0,   max:250, step:5 },
+    ]
+  },
+  {
+    id: 'paintshed', label: '── PAINT SHED',
+    sliders: [
+      { key:'psX',    label:'LEFT (X)',  min:0,  max:120, step:2 },
+      { key:'psW',    label:'WIDTH',     min:60, max:240, step:5 },
+      { key:'psH',    label:'HEIGHT',    min:60, max:220, step:5 },
+      { key:'psYOff', label:'Y OFFSET',  min:0,  max:400, step:5 },
+    ]
+  },
+  {
+    id: 'stations', label: '── WORK STATIONS',
+    sliders: [
+      { key:'wsW', label:'WS WIDTH',  min:20, max:80, step:2 },
+      { key:'wsH', label:'WS HEIGHT', min:20, max:100, step:2 },
+    ]
+  },
+  {
+    id: 'tig', label: '── TIG / SS / AL',
+    sliders: [
+      { key:'tigW', label:'WIDTH',  min:60, max:240, step:5 },
+      { key:'tigH', label:'HEIGHT', min:60, max:200, step:5 },
+    ]
+  },
+  {
+    id: 'dragon', label: '── DRAGON',
+    sliders: [
+      { key:'drH', label:'HEIGHT', min:60, max:220, step:5 },
+    ]
+  },
+  {
+    id: 'hvac', label: '── HVAC',
+    sliders: [
+      { key:'hvW', label:'WIDTH',  min:80, max:300, step:5 },
+      { key:'hvH', label:'HEIGHT', min:40, max:180, step:5 },
+    ]
+  },
+];
+
+// =============================================================================
+//  BUILD DROPDOWN + SLIDERS
+// =============================================================================
+const sel = document.getElementById('buildingSelect');
+const rowsEl = document.getElementById('sliderRows');
+
+SECTIONS.forEach((sec, i) => {
+  const opt = document.createElement('option');
+  opt.value = i;
+  opt.textContent = sec.label;
+  sel.appendChild(opt);
+});
+
+function showSection() {
+  const sec = SECTIONS[parseInt(sel.value)];
+  rowsEl.innerHTML = '';
+  sec.sliders.forEach(sl => {
+    const row = document.createElement('div');
+    row.className = 'ctrl-row';
+    row.innerHTML = `
+      <span class="ctrl-label">${sl.label}</span>
+      <input type="range" id="sl_${sl.key}" min="${sl.min}" max="${sl.max}" step="${sl.step}" value="${S[sl.key]}">
+      <span class="ctrl-val" id="vl_${sl.key}">${S[sl.key]}</span>
+    `;
+    rowsEl.appendChild(row);
+    const input = row.querySelector('input');
+    input.addEventListener('input', () => {
+      S[sl.key] = parseInt(input.value);
+      document.getElementById('vl_'+sl.key).textContent = input.value;
+      draw();
+    });
+  });
+}
+
+showSection();
+
+// =============================================================================
+//  COPY SETTINGS
+// =============================================================================
+function copySettings() {
+  const lines = Object.entries(S).map(([k,v]) => `  ${k}: ${v},`).join('\n');
+  const text = `const S = {\n${lines}\n};`;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('copyBtn');
+    btn.textContent = '✓ COPIED';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = '⧉ COPY ALL SETTINGS'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+
+// =============================================================================
+//  DRAW HELPERS
+// =============================================================================
+const canvas = document.getElementById('map');
+const ctx = canvas.getContext('2d');
+
+function dither(x, y, w, h, c1, c2) {
+  if (w <= 0 || h <= 0) return;
+  ctx.fillStyle = c1; ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = c2;
+  for (let dy = 0; dy < h; dy += 4)
+    for (let dx = 0; dx < w; dx += 4)
+      if ((dx/4 + dy/4) % 2 === 0) ctx.fillRect(x+dx, y+dy, 2, 2);
+}
+function stockLines(x, y, w, h) {
+  if (w <= 0 || h <= 0) return;
+  ctx.strokeStyle = '#9a9080'; ctx.lineWidth = 1.5;
+  for (let sy = y+16; sy < y+h-10; sy += 14) {
+    ctx.beginPath(); ctx.moveTo(x+4, sy); ctx.lineTo(x+w-4, sy); ctx.stroke();
+  }
+}
+function slab(x, y, w, h) {
+  if (w <= 0 || h <= 0) return;
+  ctx.fillStyle = '#a09888'; ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = '#b8b4a8'; ctx.fillRect(x+4, y+4, w-8, h-8);
+  ctx.strokeStyle = '#aaa89e'; ctx.lineWidth = 0.5;
+  for (let gx = x+4; gx < x+w-4; gx += 20) {
+    ctx.beginPath(); ctx.moveTo(gx, y+4); ctx.lineTo(gx, y+h-4); ctx.stroke();
+  }
+  for (let gy = y+4; gy < y+h-4; gy += 20) {
+    ctx.beginPath(); ctx.moveTo(x+4, gy); ctx.lineTo(x+w-4, gy); ctx.stroke();
+  }
+}
+function walls(x, y, w, h, roofColor) {
+  if (w <= 0 || h <= 0) return;
+  ctx.strokeStyle = '#111'; ctx.lineWidth = 5;
+  ctx.strokeRect(x+2.5, y+2.5, w-5, h-5);
+  ctx.fillStyle = roofColor;
+  ctx.fillRect(x+6, y+6, w-12, h-12);
+  ctx.strokeStyle = 'rgba(0,0,0,0.22)'; ctx.lineWidth = 1.5;
+  ctx.strokeRect(x+6, y+6, w-12, h-12);
+}
+function box(x, y, w, h, fill, stroke, sw=2) {
+  if (w <= 0 || h <= 0) return;
+  ctx.fillStyle = fill; ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = stroke; ctx.lineWidth = sw;
+  ctx.strokeRect(x+sw/2, y+sw/2, w-sw, h-sw);
+}
+function lbl(text, x, y, size=7, color='#fff') {
+  ctx.font = `${size}px "Press Start 2P", monospace`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#000'; ctx.fillText(text, x+1, y+1);
+  ctx.fillStyle = color; ctx.fillText(text, x, y);
+}
+function garageDoorH(x, y, w, h) {
+  box(x, y, w, h, '#555', '#111', 2);
+  for (let i=1; i<4; i++) {
+    ctx.strokeStyle='#333'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(x+i*(w/4),y); ctx.lineTo(x+i*(w/4),y+h); ctx.stroke();
+  }
+}
+function garageDoorV(x, y, w, h) {
+  box(x, y, w, h, '#555', '#111', 2);
+  for (let i=1; i<3; i++) {
+    ctx.strokeStyle='#333'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(x,y+i*(h/3)); ctx.lineTo(x+w,y+i*(h/3)); ctx.stroke();
+  }
+}
+
+// =============================================================================
+//  DRAW
+// =============================================================================
+function draw() {
+  const W=S.canvasW, H=S.canvasH;
+  canvas.width=W; canvas.height=H;
+
+  const fabX=S.fabX, fabY=S.fabY, fabW=S.fabW, fabH=S.fabH;
+  const PLX=fabX-S.plW, PLY=fabY+S.plYOff;
+  const OFX=fabX+fabW-S.ofW-S.ofXOff, OFY=fabY+fabH;
+  const PSY=OFY+S.psYOff;
+  const STGX=S.psX+S.psW+14, STGY=OFY+30;
+  const STGW=Math.max(0, OFX-S.psX-S.psW-28), STGH=Math.max(0, S.ofH-30);
+  const wsYs=[50,120,190,260,350];
+
+  // background
+  dither(0,0,W,H,'#8b7355','#7a6448');
+
+  // north yard
+  dither(0,0,W,S.yardTopH,'#7a7060','#686050');
+  stockLines(4,0,W-8,S.yardTopH);
+  lbl('RAW STOCK YARD',W/2,S.yardTopH/2,7,'#ccc8a8');
+
+  // west yard strip
+  const westY=S.yardTopH, westH=PSY+S.psH-westY;
+  dither(0,westY,PLX,westH,'#7a7060','#686050');
+  stockLines(0,westY,PLX,westH);
+
+  // paint shed
+  slab(S.psX,PSY,S.psW,S.psH);
+  walls(S.psX,PSY,S.psW,S.psH,'rgba(160,110,50,0.32)');
+  garageDoorV(S.psX+S.psW-2,PSY+S.psH/2-18,10,36);
+  lbl('PAINT',S.psX+S.psW/2,PSY+S.psH/2-8,6,'#ffe8c0');
+  lbl('SHED', S.psX+S.psW/2,PSY+S.psH/2+8,6,'#ffe8c0');
+
+  // plasma
+  slab(PLX,PLY,S.plW,S.plH);
+  walls(PLX,PLY,S.plW,S.plH,'rgba(180,40,40,0.22)');
+  lbl('PLASMA',PLX+S.plW/2,PLY+S.plH/2-8,6,'#ffcccc');
+  lbl('TABLE', PLX+S.plW/2,PLY+S.plH/2+6,6,'#ffcccc');
+
+  // fab
+  slab(fabX,fabY,fabW,fabH);
+  walls(fabX,fabY,fabW,fabH,'rgba(100,100,110,0.07)');
+
+  // office
+  slab(OFX,OFY,S.ofW,S.ofH);
+  walls(OFX,OFY,S.ofW,S.ofH,'rgba(60,140,60,0.26)');
+  lbl('OFFICE',OFX+S.ofW/2,OFY+S.ofH/2,6,'#ccffcc');
+
+  // connecting door
+  const doorX=OFX+S.ofW/2-12;
+  ctx.fillStyle='#b8b4a8'; ctx.fillRect(doorX,OFY-3,24,9);
+  ctx.strokeStyle='#666'; ctx.lineWidth=1.5; ctx.strokeRect(doorX,OFY-3,24,9);
+  ctx.strokeStyle='#999'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.arc(doorX,OFY+6,19,-Math.PI/2,0); ctx.stroke();
+
+  // garage doors
+  garageDoorH(fabX+fabW/2-40,fabY-2,80,10);
+  garageDoorV(fabX-2,fabY+410,10,60);
+
+  // work stations
+  wsYs.forEach((wy,i)=>{
+    box(fabX+16,fabY+wy,S.wsW,S.wsH,'#c45c8c','#111',2);
+    lbl(`WS${i+1}`,fabX+16+S.wsW/2,fabY+wy+S.wsH/2,6,'#ffe0f0');
+  });
+
+  // TIG
+  const TX=fabX+230, TY=fabY+16;
+  box(TX,TY,S.tigW,S.tigH,'#c8720a','#111',3);
+  ctx.setLineDash([5,3]); ctx.strokeStyle='#e89a3a'; ctx.lineWidth=2;
+  ctx.strokeRect(TX+3,TY+3,S.tigW-6,S.tigH-6); ctx.setLineDash([]);
+  lbl('TIG / SS',TX+S.tigW/2,TY+S.tigH/2-9,6,'#ffe8c0');
+  lbl('& ALUM',  TX+S.tigW/2,TY+S.tigH/2+6,6,'#ffe8c0');
+  box(TX+10,TY+10,10,18,'#778','#334',1.5);
+  box(TX+10,TY+34,10,18,'#778','#334',1.5);
+
+  // benches
+  box(fabX+68, fabY+16,44,20,'#c45c8c','#111',2);
+  lbl('BENCH',fabX+68+22,fabY+26,5,'#ffe0f0');
+  box(fabX+130,fabY+16,44,20,'#c45c8c','#111',2);
+  lbl('BENCH',fabX+130+22,fabY+26,5,'#ffe0f0');
+
+  // dragon
+  const DRX=fabX+fabW-82, DRY=fabY+270;
+  box(DRX,DRY,68,S.drH,'#cccc22','#111',3);
+  lbl('DRAG-',DRX+34,DRY+S.drH/2-8,6,'#333300');
+  lbl('ON',   DRX+34,DRY+S.drH/2+7,6,'#333300');
+
+  // stock pipe
+  box(fabX+fabW-64,fabY+410,50,100,'#1a3a8a','#111',2);
+  lbl('PIPE',fabX+fabW-64+25,fabY+410+44,5,'#aaccff');
+  lbl('STK', fabX+fabW-64+25,fabY+410+58,5,'#aaccff');
+
+  // brake press
+  box(fabX+16,fabY+fabH-80,70,58,'#22aa66','#111',3);
+  lbl('BRAKE',fabX+16+35,fabY+fabH-80+22,5,'#ccffee');
+  lbl('PRESS',fabX+16+35,fabY+fabH-80+36,5,'#ccffee');
+
+  // stock sheet
+  box(fabX+140,fabY+fabH-140,80,44,'#3366cc','#111',2);
+  lbl('SHEET',fabX+140+40,fabY+fabH-140+15,5,'#cce0ff');
+  lbl('STOCK',fabX+140+40,fabY+fabH-140+29,5,'#cce0ff');
+
+  // hvac
+  const HVX=fabX+170, HVY=fabY+fabH-90;
+  box(HVX,HVY,S.hvW,S.hvH,'#3a7080','#111',3);
+  ctx.fillStyle='#4a8898'; ctx.fillRect(HVX+4,HVY+4,S.hvW-8,S.hvH-8);
+  lbl('HVAC',HVX+S.hvW/2,HVY+S.hvH/2-7,7,'#cceeee');
+  lbl('AREA',HVX+S.hvW/2,HVY+S.hvH/2+10,6,'#aadddd');
+
+  // staging
+  if (STGW>0 && STGH>0) {
+    dither(STGX,STGY,STGW,STGH,'#8a8070','#7a7060');
+    ctx.strokeStyle='#554433'; ctx.lineWidth=1.5; ctx.strokeRect(STGX,STGY,STGW,STGH);
+    for (let fx=STGX; fx<=STGX+STGW; fx+=16) {
+      ctx.fillStyle='#554433';
+      ctx.fillRect(fx-2,STGY-3,4,6); ctx.fillRect(fx-2,STGY+STGH-3,4,6);
+    }
+    for (let fy=STGY; fy<=STGY+STGH; fy+=16) {
+      ctx.fillStyle='#554433';
+      ctx.fillRect(STGX-3,fy-2,6,4); ctx.fillRect(STGX+STGW-3,fy-2,6,4);
+    }
+    lbl('STAGING',STGX+STGW/2,STGY+STGH/2-7,6,'#ffe8cc');
+    lbl('& SHIP', STGX+STGW/2,STGY+STGH/2+9,5,'#ffe8cc');
+  }
+}
+
+draw();
+</script>
+</body>
+</html>
